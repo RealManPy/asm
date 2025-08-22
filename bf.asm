@@ -11,9 +11,9 @@ section	.data
 	code:	db	">++++++++[<+++++++++>-]<.>++++[<+++++++>-]<+.+++++++..+++.>>++++++[<+++++++>-]<++.------------.>++++++[<+++++++++>-]<+.<.+++.------.--------.>>>++++[<++++++++>-]<+.", 0
 	codelen:	equ $ - code
 	
-	bnd_err_msg: db	"Error: out of bounds.\n"
+	bnd_err_msg: db	"Error: out of bounds.", 10
 	bnd_err_msg_len:	equ $ - bnd_err_msg
-	unclosed_loop_err_msg: db	"Error: unclosed loop.\n"
+	unclosed_loop_err_msg: db	"Error: unclosed loop.", 10
 	unclosed_loop_err_msg_len:	equ $ - unclosed_loop_err_msg
 section	.text
 
