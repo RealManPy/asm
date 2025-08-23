@@ -7,18 +7,45 @@
 global _start
 
 section	.data
+
 	array:	db 100	dup(0)
-	code:	db	">++++++++[<+++++++++>-]<.>++++[<+++++++>-]<+.+++++++..+++.>>++++++[<+++++++>-]<++.------------.>++++++[<+++++++++>-]<+.<.+++.------.--------.>>>++++[<++++++++>-]<+.", 0
-	codelen:	equ $ - code
+
+	buf:		db	4096 dup(0)
+	size equ 4096
 	
 	bnd_err_msg: db	"Error: out of bounds.", 10
 	bnd_err_msg_len:	equ $ - bnd_err_msg
+	
 	unclosed_loop_err_msg: db	"Error: unclosed loop.", 10
 	unclosed_loop_err_msg_len:	equ $ - unclosed_loop_err_msg
+	
+	opn_err_msg: db	"Error: cannot open file", 10
+	opn_err_msg_len:	equ $ - opn_err_msg
+	
 section	.text
 
 _start:
-	lea rbp, code	; load address of code to rbp
+	mov rbx, 'a' ; DEBUGGING ONLY DEBUGGING ONLY DEBUGGING ONLY DEBUGGING ONLY
+
+	
+	mov rsi, [rsp + 16] ; load the file with the code to rsi
+	mov rax, 257                  ; Syscall number: openat
+	mov rdi, -100                 ; AT_FDCWD = current directory
+	xor rdx, rdx                  ; Flags = O_RDONLY (0)
+	xor r10, r10                  ; Mode = 0 (ignored since no O_CREAT)
+	syscall                       ; Execute syscall
+	
+	mov r14,rax	; file descriptor
+	cmp r14, 0
+	jl open_err
+
+	mov rax, 0        ; syscall: read
+	mov rdi, r14       ; file descriptor
+	mov rsi, buf      ; buffer address
+	mov rdx, size     ; bytes to read
+	syscall
+
+	lea rbp, buf	; load address of the code to rbp
 	mov r13, 0	; index in array
 	dec rbp
 	
@@ -134,12 +161,12 @@ _start:
 	jmp exe_com
 	
 	exit:
+	call close_file
 	mov rax, 60	; sys_exit
 	mov rdi, r15	; exit code 0
 	syscall
 	
 	
-
 
 bound_err:
 
@@ -161,3 +188,40 @@ loop_err:
 
 	mov r15, 1	; exit status 1
 	jmp exit
+	
+close_file:
+	cmp r14, 0 ; if fd = 0
+	jl skip_close_file
+	
+	mov rax, 3                    ; Syscall: close
+	mov rdi, r14                  ; fd
+	syscall
+	
+	skip_close_file:
+	ret
+
+open_err:
+	
+	mov rax, 1	; sys_write
+	mov rdi, 1	; stdout
+	mov rsi, opn_err_msg
+	mov rdx, opn_err_msg_len
+	syscall
+	
+
+	mov r15, 1	; exit status 1
+	jmp exit
+	
+dbg: ; ------------- for debugging only --------------------
+	inc rbx ; add 1 to rbx, inc + counter
+	push rbx
+	
+	mov rax, 1	; sys_write
+	mov rdi, 1	; stdout
+	mov rsi, rsp
+	mov rdx, 1
+	syscall
+	
+	pop rbx
+	
+	ret
