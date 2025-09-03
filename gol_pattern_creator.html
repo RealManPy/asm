@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Game of Life Init Code Generator</title>
+  <style>
+    :root { --cell: 26px; --gap: 4px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 0; padding: 16px; background:#0b0c10; color:#e5e7eb; }
+    h1 { font-size: 18px; margin: 0 0 12px; font-weight: 600; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+    label { font-size: 14px; }
+    input[type="number"], input[type="text"] { background:#111827; color:#e5e7eb; border:1px solid #374151; border-radius:8px; padding:8px 10px; width:100px; }
+    input[type="text"] { width:140px; }
+    button { background:#1f2937; color:#e5e7eb; border:1px solid #374151; border-radius:10px; padding:8px 12px; cursor:pointer; }
+    button:hover { filter: brightness(1.1); }
+    .grid { display: grid; gap: var(--gap); margin: 10px 0 12px; width: max-content; }
+    .cell { width: var(--cell); height: var(--cell); border-radius: 6px; background:#111827; border:1px solid #374151; cursor:pointer; display:grid; place-items:center; font-size:11px; color:#6b7280; user-select:none; }
+    .cell.alive { background:#10b981; color:#062e26; border-color:#0ea37a; }
+    .small { font-size: 12px; color:#9ca3af; }
+    .panel { display:grid; grid-template-columns: 1fr; gap:10px; }
+    .codebox { width: 100%; min-height: 180px; background:#111827; color:#e5e7eb; border:1px solid #374151; border-radius:10px; padding:10px; white-space:pre; overflow:auto; }
+    .muted { color:#9ca3af; }
+    .toolbar { display:flex; gap:8px; align-items:center; }
+  </style>
+</head>
+<body>
+  <h1>Init Generator: mov byte [<span id="gridNameLabel">grid</span> + idx], <span id="oneNameLabel">one</span></h1>
+
+  <div class="row">
+    <label>Width: <input id="width" type="number" min="1" max="256" step="1" value="16"></label>
+    <label>Grid label: <input id="gridName" type="text" value="grid"></label>
+    <label>Alive symbol: <input id="oneName" type="text" value="one"></label>
+    <div class="toolbar">
+      <button id="apply">Apply</button>
+      <button id="clear">Clear grid</button>
+      <button id="invert">Invert</button>
+    </div>
+  </div>
+
+  <div id="grid" class="grid" aria-label="click cells to toggle"></div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <button id="copy">Copy code</button>
+      <span class="small muted">Row-major indexing. Top-left = index 0. Index = y*width + x.</span>
+    </div>
+    <pre id="code" class="codebox" tabindex="0">; generated lines will appear here</pre>
+  </div>
+
+  <script>
+    let W = 16;
+    let selected = new Set();
+
+    const gridEl = document.getElementById('grid');
+    const codeEl = document.getElementById('code');
+
+    const widthInput = document.getElementById('width');
+    const gridNameInput = document.getElementById('gridName');
+    const oneNameInput = document.getElementById('oneName');
+
+    const gridNameLabel = document.getElementById('gridNameLabel');
+    const oneNameLabel = document.getElementById('oneNameLabel');
+
+    const applyBtn = document.getElementById('apply');
+    const clearBtn = document.getElementById('clear');
+    const invertBtn = document.getElementById('invert');
+    const copyBtn = document.getElementById('copy');
+
+    function buildGrid() {
+      W = Math.max(1, Math.min(256, parseInt(widthInput.value || '16', 10)));
+      gridEl.style.gridTemplateColumns = `repeat(${W}, var(--cell))`;
+
+      gridEl.innerHTML = '';
+      selected.clear();
+
+      const count = W * W;
+      for (let i = 0; i < count; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.idx = i;
+        cell.title = `idx ${i}`;
+        if (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell')) >= 26) {
+          cell.textContent = String(i);
+        }
+        cell.addEventListener('click', onToggle);
+        gridEl.appendChild(cell);
+      }
+      renderCode();
+    }
+
+    function onToggle(e) {
+      const cell = e.currentTarget;
+      const idx = parseInt(cell.dataset.idx, 10);
+      if (selected.has(idx)) {
+        selected.delete(idx);
+        cell.classList.remove('alive');
+      } else {
+        selected.add(idx);
+        cell.classList.add('alive');
+      }
+      renderCode();
+    }
+
+    function renderCode() {
+      const gridName = sanitizeSymbol(gridNameInput.value || 'grid');
+      const oneName = sanitizeSymbol(oneNameInput.value || 'one');
+      gridNameLabel.textContent = gridName;
+      oneNameLabel.textContent = oneName;
+
+      const lines = Array.from(selected)
+        .sort((a,b) => a - b)
+        .map(i => `mov byte [${gridName} + ${i}], ${oneName}`);
+
+      codeEl.textContent = lines.length ? lines.join('\n') : '; generated lines will appear here';
+    }
+
+    function sanitizeSymbol(s) {
+      return (s || '').toString().trim().replace(/[^A-Za-z0-9_\.]/g, '') || 'grid';
+    }
+
+    applyBtn.addEventListener('click', buildGrid);
+
+    clearBtn.addEventListener('click', () => {
+      selected.clear();
+      document.querySelectorAll('.cell.alive').forEach(c => c.classList.remove('alive'));
+      renderCode();
+    });
+
+    invertBtn.addEventListener('click', () => {
+      const cells = Array.from(document.querySelectorAll('.cell'));
+      cells.forEach(c => {
+        const idx = parseInt(c.dataset.idx, 10);
+        if (selected.has(idx)) {
+          selected.delete(idx);
+          c.classList.remove('alive');
+        } else {
+          selected.add(idx);
+          c.classList.add('alive');
+        }
+      });
+      renderCode();
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      const text = codeEl.textContent.trim();
+      if (!text || text.startsWith(';')) return;
+      try {
+        await navigator.clipboard.writeText(text + '\n');
+        copyBtn.textContent = 'Copied';
+        setTimeout(() => (copyBtn.textContent = 'Copy code'), 900);
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(codeEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('copy');
+        sel.removeAllRanges();
+      }
+    });
+
+    buildGrid();
+  </script>
+</body>
+</html>
